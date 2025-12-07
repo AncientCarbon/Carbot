@@ -18,7 +18,7 @@ builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
 builder.Services.AddSingleton(sp =>
     new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
 
-var dbConnectionString = builder.Configuration["DB_CONNECTION_STRING"];
+var dbConnectionString = builder.Configuration.GetConnectionString("CarbotDb");
 if (string.IsNullOrWhiteSpace(dbConnectionString))
 {
     throw new Exception("DB_CONNECTION_STRING is not set in .env");
