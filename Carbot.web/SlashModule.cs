@@ -1,7 +1,7 @@
-using System.Threading.Tasks;
-using Discord.Interactions;
 using System.Linq;
+using System.Threading.Tasks;
 using Discord;
+using Discord.Interactions;
 using Discord.WebSocket;
 
 namespace Carbot;
@@ -36,14 +36,14 @@ public class SlashModule : InteractionModuleBase<SocketInteractionContext>
     [SlashCommand("truth", "Carbot will ask you a question")]
     public async Task Truth()
     {
-        var pick = _prompts.GetRandomTruth();
+        var pick = await _prompts.GetRandomTruthAsync();
         await RespondAsync(pick);
     }
 
     [SlashCommand("dare", "Carbot will give you a dare")]
     public async Task Dare()
     {
-        var pick = _prompts.GetRandomDare();
+        var pick = await _prompts.GetRandomDareAsync();
         await RespondAsync(pick);
     }
 
@@ -55,7 +55,7 @@ public class SlashModule : InteractionModuleBase<SocketInteractionContext>
             await RespondAsync("You don't have permission to add prompts.", ephemeral: true);
             return;
         }
-        _prompts.AddTruth(text);
+        await _prompts.AddTruthAsync(text);
         await RespondAsync($"Added new truth: {text}", ephemeral: true);
     }
 
@@ -67,7 +67,7 @@ public class SlashModule : InteractionModuleBase<SocketInteractionContext>
             await RespondAsync("You don't have permission to add prompts.", ephemeral: true);
             return;
         }
-        _prompts.AddDare(text);
+        await _prompts.AddDareAsync(text);
         await RespondAsync($"Added new dare: {text}", ephemeral: true);
     }
 
@@ -79,11 +79,12 @@ public class SlashModule : InteractionModuleBase<SocketInteractionContext>
             await RespondAsync("You don't have permission to remove prompts.", ephemeral: true);
             return;
         }
-        var ok = _prompts.RemoveTruth(index - 1);
+        var ok = await _prompts.RemoveTruthAsync(index - 1);
 
         if (!ok)
         {
             await RespondAsync($"Invalid truth index: {index}", ephemeral: true);
+            return;
         }
         await RespondAsync($"Removed truth at index {index}", ephemeral: true);
     }
@@ -96,11 +97,12 @@ public class SlashModule : InteractionModuleBase<SocketInteractionContext>
             await RespondAsync("You don't have permission to remove prompts.", ephemeral: true);
             return;
         }
-        var ok = _prompts.RemoveDare(index - 1);
+        var ok = await _prompts.RemoveDareAsync(index - 1);
 
         if (!ok)
         {
             await RespondAsync($"Invalid dare index: {index}", ephemeral: true);
+            return;
         }
         await RespondAsync($"Removed dare at index {index}", ephemeral: true);
     }

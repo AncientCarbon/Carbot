@@ -1,149 +1,110 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.IO;
-using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 
 namespace Carbot;
 
 public class PromptStore
 {
-    private readonly List<string> _truths;
-    private readonly List<string> _dares;
+    private readonly IDbContextFactory<CarbotDbContext> _dbFactory;
     private readonly Random _random = new();
-    private readonly object _lock = new();
-    private readonly string _dataFilePath;
 
-    private class PromptData
+    public PromptStore(IDbContextFactory<CarbotDbContext> dbFactory)
     {
-        public List<string> Truths { get; set; } = new();
-        public List<string> Dares { get; set; } = new();
+        _dbFactory = dbFactory;
     }
 
-    public PromptStore()
+    public async Task<List<string>> GetTruthsAsync()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dataDir = Path.Combine(baseDir, "data");
-        Directory.CreateDirectory(dataDir);
-        _dataFilePath = Path.Combine(dataDir, "prompts.json");
-
-        _truths = new List<string>
-        {
-            "What is your biggest irrational fear?",
-            "Have you ever lied about something serious?"
-        };
-
-        _dares = new List<string>
-        {
-            "Eat healthier today",
-            "Drink some water"
-        };
-        LoadFromFile();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.Prompts
+            .Where(p => p.Type == PromptType.Truth)
+            .OrderBy(p => p.Id)
+            .Select(p => p.Text)
+            .ToListAsync();
     }
 
-    private void LoadFromFile()
+    public async Task<List<string>> GetDaresAsync()
     {
-        if (!File.Exists(_dataFilePath)) return;
-
-        try
-        {
-            var json = File.ReadAllText(_dataFilePath);
-            var data = JsonSerializer.Deserialize<PromptData>(json);
-            if (data is null) return;
-
-            _truths.Clear();
-            _truths.AddRange(data.Truths);
-
-            _dares.Clear();
-            _dares.AddRange(data.Dares);
-        }
-        catch
-        {
-            // ignore for now
-        }
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.Prompts
+            .Where(p => p.Type == PromptType.Dare)
+            .OrderBy(p => p.Id)
+            .Select(p => p.Text)
+            .ToListAsync();
     }
 
-    private void SaveToFile()
+    public async Task<string> GetRandomTruthAsync()
     {
-        var data = new PromptData
-        {
-            Truths = _truths.ToList(),
-            Dares = _dares.ToList()
-        };
+        var truths = await GetTruthsAsync();
+        if (truths.Count == 0) return "No truths yet.";
+        return truths[_random.Next(truths.Count)];
+    }
 
-        var json = JsonSerializer.Serialize(data, new JsonSerializerOptions
+    public async Task<string> GetRandomDareAsync()
+    {
+        var dares = await GetDaresAsync();
+        if (dares.Count == 0) return "No dares yet.";
+        return dares[_random.Next(dares.Count)];
+    }
+
+    public async Task AddTruthAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        db.Prompts.Add(new Prompt
         {
-            WriteIndented = true
+            Type = PromptType.Truth,
+            Text = text
         });
-
-        File.WriteAllText(_dataFilePath, json);
+        await db.SaveChangesAsync();
     }
 
-    public IReadOnlyList<string> GetTruths()
-    {
-        lock (_lock)
-            return _truths.ToList();
-    }
-
-    public IReadOnlyList<string> GetDares()
-    {
-        lock (_lock)
-            return _dares.ToList();
-    }
-
-    public string GetRandomTruth()
-    {
-        lock (_lock)
-            return _truths[_random.Next(_truths.Count)];
-    }
-
-    public string GetRandomDare()
-    {
-        lock (_lock)
-            return _dares[_random.Next(_dares.Count)];
-    }
-
-    public void AddTruth(string text)
+    public async Task AddDareAsync(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
-        lock (_lock)
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        db.Prompts.Add(new Prompt
         {
-            _truths.Add(text);
-            SaveToFile();
-        } 
+            Type = PromptType.Dare,
+            Text = text
+        });
+        await db.SaveChangesAsync();
     }
 
-    public void AddDare(string text)
+    public async Task<bool> RemoveTruthAsync(int index)
     {
-        if (string.IsNullOrWhiteSpace(text)) return;
-        lock (_lock)
-        { 
-            _dares.Add(text);
-            SaveToFile();
-        }
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var truth = await db.Prompts
+            .Where(p => p.Type == PromptType.Truth)
+            .OrderBy(p => p.Id)
+            .Skip(index)
+            .Take(1)
+            .FirstOrDefaultAsync();
+
+        if (truth is null) return false;
+
+        db.Prompts.Remove(truth);
+        await db.SaveChangesAsync();
+        return true;
     }
 
-    public bool RemoveTruth(int index)
+    public async Task<bool> RemoveDareAsync(int index)
     {
-        lock (_lock)
-        {
-            if (index < 0 || index >= _truths.Count)
-                return false;
-            _truths.RemoveAt(index);
-            SaveToFile();
-            return true;
-        }
-    }
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
-    public bool RemoveDare(int index)
-    {
-        lock (_lock)
-        {
-            if (index < 0 || index >= _dares.Count)
-                return false;
-            _dares.RemoveAt(index);
-            SaveToFile();
-            return true;
-        }
+        var dare = await db.Prompts
+            .Where(p => p.Type == PromptType.Dare)
+            .OrderBy(p => p.Id)
+            .Skip(index)
+            .Take(1)
+            .FirstOrDefaultAsync();
+
+        if (dare is null) return false;
+
+        db.Prompts.Remove(dare);
+        await db.SaveChangesAsync();
+        return true;
     }
 }
