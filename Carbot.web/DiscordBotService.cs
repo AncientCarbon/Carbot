@@ -18,7 +18,12 @@ public class DiscordBotService : BackgroundService
     private readonly IServiceProvider _services;
     private readonly ILogger<DiscordBotService> _logger;
     
+    private const ulong TriggerGuildId   = 356439329028964352UL;
+    private const ulong TriggerUserId    = 329589414172819459UL;
+    private const ulong TargetChannelId  = 1280216425281224794UL;
+
     private bool _registered;
+    private bool _voiceTriggerFired;
     private ulong _guildId;
     private string? _token;
 
@@ -78,6 +83,49 @@ public class DiscordBotService : BackgroundService
             _logger.LogInformation("Slash commands synced to guild {GuildId}", _guildId);
             _logger.LogInformation("Commands: {Commands}", string.Join(", ", _interactions.SlashCommands));
         };
+        _client.UserVoiceStateUpdated += async (user, before, after) =>
+        {
+            if (user.Id != TriggerUserId) return;
+            if (after.VoiceChannel == null) return; // user left, not joined
+            if (after.VoiceChannel.Guild.Id != TriggerGuildId) return;
+            if (_voiceTriggerFired) return;
+
+            _voiceTriggerFired = true;
+
+            var guild         = after.VoiceChannel.Guild;
+            var targetChannel = guild.GetVoiceChannel(TargetChannelId);
+
+            if (targetChannel == null)
+            {
+                _logger.LogWarning("Target voice channel {ChannelId} not found in guild {GuildId}", TargetChannelId, TriggerGuildId);
+                return;
+            }
+
+            var membersToMove = after.VoiceChannel.ConnectedUsers
+                .Where(u => u.Id != TriggerUserId && u.VoiceChannel?.Id != TargetChannelId)
+                .ToList();
+
+            if (membersToMove.Count == 0)
+            {
+                _logger.LogInformation("Voice trigger fired but all members are already in target channel");
+                return;
+            }
+
+            foreach (var member in membersToMove)
+            {
+                try
+                {
+                    await member.ModifyAsync(props => props.Channel = targetChannel);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to move user {UserId} to channel {ChannelId}", member.Id, TargetChannelId);
+                }
+            }
+
+            _logger.LogInformation("Moved {Count} user(s) to channel {ChannelId} after trigger user joined", membersToMove.Count, TargetChannelId);
+        };
+
         await base.StartAsync(cancellationToken);
     }
 

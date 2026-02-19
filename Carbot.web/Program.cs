@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Discord client config
 builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
 {
-    GatewayIntents = GatewayIntents.Guilds,
+    GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildVoiceStates,
     AlwaysDownloadUsers = false,
     LogLevel = LogSeverity.Info
 }));
