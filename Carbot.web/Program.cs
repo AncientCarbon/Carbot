@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
 {
     GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildVoiceStates,
-    AlwaysDownloadUsers = false,
+    AlwaysDownloadUsers = true,
     LogLevel = LogSeverity.Info
 }));
 
