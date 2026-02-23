@@ -19,7 +19,7 @@ public class DiscordBotService : BackgroundService
     private readonly ILogger<DiscordBotService> _logger;
     
     private const ulong TriggerGuildId   = 356439329028964352UL;
-    private const ulong TriggerUserId    = 867758207803719690UL;
+    private const ulong TriggerUserId    = 329589414172819459UL;
     private const ulong TargetChannelId  = 1280216425281224794UL;
 
     private bool _registered;
